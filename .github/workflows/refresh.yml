@@ -1,0 +1,44 @@
+name: Refresh MLB data
+
+# Runs update.py in the cloud on a schedule, commits the new data.js, which
+# makes GitHub Pages redeploy the site automatically. No laptop needed.
+
+on:
+  schedule:
+    - cron: '0 14 * * *'   # ~10am ET (morning slate + probables)
+    - cron: '0 17 * * *'   # ~1pm ET  (catch late-announced starters / scratches)
+  workflow_dispatch: {}     # lets you trigger a refresh by hand from the Actions tab
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    env:
+      TZ: America/New_York   # so update.py's "today" is Eastern time, not UTC
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Regenerate data.js
+        run: python update.py
+
+      - name: Commit & push if data changed
+        run: |
+          git config user.name  "mlb-refresh-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data.js
+          if git diff --staged --quiet; then
+            echo "No data change this run."
+          else
+            git commit -m "Auto-refresh data.js ($(date '+%Y-%m-%d %H:%M %Z'))"
+            git push
+          fi

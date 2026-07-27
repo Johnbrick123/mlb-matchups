@@ -1,0 +1,23 @@
+[2025] schedule…
+[2025] 2434 final games
+[2025] 30 teams, 367 probable starters
+[2025] fetched 100/794
+[2025] fetched 200/794
+[2025] fetched 300/794
+[2025] fetched 400/794
+[2025] fetched 500/794
+[2025] fetched 600/794
+[2025] fetched 700/794
+[2025] fetch complete (794 jobs, 0 errors)
+[2025] wrote 4669 team-games (199 skipped: no as-of xERA) -> C:\Users\brick\mlb-compare\backtest\games_2025.csv
+[2026] schedule…
+[2026] 1571 final games
+[2026] 30 teams, 313 probable starters
+[2026] fetched 100/686
+[2026] fetched 200/686
+[2026] fetched 300/686
+[2026] fetched 400/686
+[2026] fetched 500/686
+[2026] fetched 600/686
+[2026] fetch complete (686 jobs, 0 errors)
+[2026] wrote 2977 team-games (165 skipped: no as-of xERA) -> C:\Users\brick\mlb-compare\backtest\games_2026.csv

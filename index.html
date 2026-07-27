@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MLB Matchup Scores</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --panel2:#1c232d; --line:#2a323d;
+    --txt:#e6edf3; --muted:#8b98a5; --accent:#4a9eff; --chip:#222c38;
+    --good:#2ea043; --bad:#e5534b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;position:sticky;top:0;background:var(--bg);z-index:5}
+  h1{font-size:18px;margin:0;font-weight:650;letter-spacing:.2px}
+  .date{color:var(--muted);font-size:13px}
+  .spacer{flex:1}
+  .tabs{display:flex;gap:6px;padding:10px 20px 0}
+  .tab{padding:7px 14px;border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;background:var(--panel);color:var(--muted);cursor:pointer;font-weight:550}
+  .tab.active{background:var(--panel2);color:var(--txt)}
+  .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 20px;background:var(--panel2);border-bottom:1px solid var(--line)}
+  input[type=search],select{background:var(--panel);border:1px solid var(--line);color:var(--txt);padding:7px 10px;border-radius:8px;font-size:13px;outline:none}
+  input[type=search]{min-width:210px}
+  input[type=search]:focus,select:focus{border-color:var(--accent)}
+  button.ghost{background:var(--panel);border:1px solid var(--line);color:var(--txt);padding:7px 12px;border-radius:8px;cursor:pointer;font-size:13px}
+  button.ghost:hover{border-color:var(--accent)}
+  button.ghost.on{border-color:var(--accent);color:var(--accent)}
+  .count{color:var(--muted);font-size:12px}
+  .wrap{padding:0 12px 60px}
+  table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+  th,td{padding:7px 9px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+  th{position:sticky;top:0;background:var(--panel);color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.4px;cursor:pointer;user-select:none;z-index:2}
+  th.grp{text-align:center}
+  th .arrow{opacity:.4;font-size:10px}
+  th.sorted{color:var(--txt)} th.sorted .arrow{opacity:1;color:var(--accent)}
+  td.l,th.l{text-align:left}
+  tbody tr:hover{background:#1a212b}
+  .team{font-weight:650}
+  .ha{font-size:10px;padding:2px 6px;border-radius:20px;background:var(--chip);color:var(--muted)}
+  .ha.Home{color:#7ee0a2} .ha.Away{color:#f0c674}
+  .sub{color:var(--muted);font-size:12px}
+  .score{font-weight:700;border-radius:6px;padding:5px 8px;color:#06121f;min-width:46px;display:inline-block;text-align:center}
+  .cellscore{border-radius:5px;font-weight:600}
+  td.na{color:#5b6672}
+  .groupsep{border-left:2px solid var(--line)!important}
+  .legend{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px}
+  .bar{height:10px;width:120px;border-radius:6px;background:linear-gradient(90deg,hsl(0 65% 45%),hsl(60 70% 45%),hsl(120 55% 42%))}
+  /* weights panel */
+  .weights{padding:14px 20px;background:var(--panel2);border-bottom:1px solid var(--line);display:none;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px}
+  .weights.open{display:grid}
+  .witem label{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px}
+  .witem b{color:var(--txt)}
+  .witem input[type=range]{width:100%;accent-color:var(--accent)}
+  .note{padding:10px 20px;color:var(--muted);font-size:12px}
+  .formula{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:#9db2c9}
+  tfoot td{color:var(--muted);font-size:12px;border-top:1px solid var(--line);border-bottom:none}
+  .mh{font-size:14px;font-weight:650;margin:6px 0 10px;padding:0 9px}
+  .msub{font-weight:400;color:var(--muted);font-size:12px;margin-left:8px}
+  .lean{font-weight:650;color:#7ee0a2}
+  .mini{display:inline-block;min-width:34px;padding:3px 7px;border-radius:5px;font-weight:700;color:#06121f;text-align:center}
+  .pk{display:inline-block;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:650;white-space:nowrap}
+  .pk-over{background:rgba(126,224,162,0.16);color:#7ee0a2}
+  .pk-under{background:rgba(127,178,240,0.16);color:#7fb2f0}
+</style>
+</head>
+<body>
+<header>
+  <h1>⚾ MLB Matchup Scores</h1>
+  <span class="date" id="dateLabel"></span>
+  <div class="spacer"></div>
+  <div class="legend"><span>Low</span><span class="bar"></span><span>High spot for offense</span></div>
+</header>
+
+<div class="tabs" id="tabs">
+  <div class="tab active" data-tab="slate">Slate</div>
+  <div class="tab" data-tab="matchups">Matchups</div>
+  <div class="tab" data-tab="runs">Runs / Game</div>
+  <div class="tab" data-tab="ops">Team OPS</div>
+  <div class="tab" data-tab="bullpen">Bullpens</div>
+</div>
+
+<!-- SLATE -->
+<section id="view-slate">
+  <div class="toolbar">
+    <input type="search" id="q" placeholder="Filter team, pitcher, game…">
+    <select id="haFilter"><option value="">All games</option><option>Home</option><option>Away</option></select>
+    <label class="sub">Min score <input type="number" id="minScore" value="0" min="0" max="100" step="5" style="width:64px;background:var(--panel);border:1px solid var(--line);color:var(--txt);padding:6px;border-radius:8px"></label>
+    <button class="ghost" id="toggleInputs">Show raw inputs</button>
+    <button class="ghost" id="toggleWeights">Adjust weights ▾</button>
+    <div class="spacer"></div>
+    <span class="count" id="count"></span>
+  </div>
+  <div class="weights" id="weights"></div>
+  <div class="wrap"><table id="tbl"></table></div>
+  <div class="note">Each row = one team's offense vs the opposing starter + bullpen. <span class="formula" id="formulaText"></span></div>
+</section>
+
+<!-- MATCHUPS -->
+<section id="view-matchups" style="display:none">
+  <div class="wrap" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:24px">
+    <div>
+      <h2 class="mh">Largest spreads <span class="msub">gap between the two offenses' scores — most lopsided matchups first</span></h2>
+      <table id="tblSpread"></table>
+    </div>
+    <div>
+      <h2 class="mh">Highest combined totals <span class="msub">both offenses' scores added — biggest "over" leans first</span></h2>
+      <table id="tblTotal"></table>
+    </div>
+  </div>
+  <div class="note"><b>Lean</b> = the team with the better offensive spot (higher score). Spreads/totals recompute live when you change the weight sliders on the Slate tab.<br>
+  <b>Park</b> = run environment of the home stadium (only extreme parks tagged). In the backtest it moves the total most when combined is high (≥120: hitter park 68% over 8.5 vs 56% at a pitcher park) or low; it washes out in the middle. <span class="pk pk-over">Over</span> = hitter-friendly, <span class="pk pk-under">Under</span> = pitcher-friendly. "~wind" = Wrigley, where wind dominates and the tag is only a season average.</div>
+</section>
+
+<!-- REFERENCE TABS -->
+<section id="view-runs" style="display:none"><div class="wrap"><table id="tblRuns"></table></div></section>
+<section id="view-ops" style="display:none"><div class="wrap"><table id="tblOps"></table></div></section>
+<section id="view-bullpen" style="display:none"><div class="wrap"><table id="tblBullpen"></table></div></section>
+
+<script src="data.js"></script>
+<script>
+const S = window.SLATE;
+const W = {...S.weights};          // live-adjustable weights
+let sortKey = "total", sortDir = -1;
+let showInputs = false;
+
+document.getElementById('dateLabel').textContent = S.date;
+
+/* ---------- scoring ---------- */
+function sub(val, sc){
+  if(val===null||val===undefined||isNaN(val)) return null;
+  let p = (val - sc.min)/(sc.max - sc.min)*100;
+  return Math.max(0, Math.min(100, p));
+}
+function scoreRow(r){
+  const xERA    = sub(r.oppXERA, S.scales.xERA);
+  const bullpen = sub(r.oppBullpenERA, S.scales.bullpen);
+  const ops     = sub(r.ops, S.scales.ops);
+  const opsL3   = sub(r.opsL3, S.scales.opsL3);
+  const runsL3  = sub(r.runsL3, S.scales.runsL3);
+  const parts = {xERA, ops, bullpen, runsL3, opsL3};
+  // total requires opposing pitcher xERA (TBD starter => no total, like the sheet's #N/A)
+  let total = null;
+  if(xERA!==null){
+    const wsum = W.xERA+W.ops+W.bullpen+W.runsL3+W.opsL3;
+    total = (xERA*W.xERA + ops*W.ops + bullpen*W.bullpen + runsL3*W.runsL3 + opsL3*W.opsL3)/wsum;
+  }
+  return {...r, s:parts, total};
+}
+function heat(v){ // 0..100 -> color
+  if(v===null) return null;
+  const h = v*1.2;               // 0=red -> 120=green
+  return `hsl(${h} 62% 46%)`;
+}
+
+/* ---------- weights UI ---------- */
+const wLabels = {xERA:"Opp xERA", ops:"Season OPS", bullpen:"Opp Bullpen", runsL3:"Runs L3", opsL3:"OPS L3"};
+function buildWeights(){
+  const el = document.getElementById('weights');
+  el.innerHTML = Object.keys(W).map(k=>{
+    return `<div class="witem">
+      <label>${wLabels[k]} <b id="wv-${k}"></b></label>
+      <input type="range" min="0" max="60" step="1" value="${Math.round(W[k]*100)}" data-w="${k}">
+    </div>`;
+  }).join('') + `<div class="witem" style="align-self:end">
+      <button class="ghost" id="resetW">Reset to 40/30/10/10/10</button></div>`;
+  el.querySelectorAll('input[type=range]').forEach(inp=>{
+    inp.oninput = ()=>{ W[inp.dataset.w] = (+inp.value)/100; render(); updateWeightLabels(); };
+  });
+  document.getElementById('resetW').onclick = ()=>{
+    Object.assign(W, S.weights);
+    el.querySelectorAll('input[type=range]').forEach(i=> i.value=Math.round(W[i.dataset.w]*100));
+    render(); updateWeightLabels();
+  };
+  updateWeightLabels();
+}
+function updateWeightLabels(){
+  const sum = Object.values(W).reduce((a,b)=>a+b,0)||1;
+  Object.keys(W).forEach(k=>{
+    document.getElementById('wv-'+k).textContent = (100*W[k]/sum).toFixed(0)+'%';
+  });
+  document.getElementById('formulaText').textContent =
+    `Total = ` + Object.keys(W).map(k=>`${(100*W[k]/(Object.values(W).reduce((a,b)=>a+b,0)||1)).toFixed(0)}%·${wLabels[k]}`).join(' + ');
+}
+
+/* ---------- main table ---------- */
+const inputCols = [
+  {k:"oppXERA", h:"Opp xERA", d:2},
+  {k:"oppBullpenERA", h:"Opp BP ERA", d:2},
+  {k:"bullpenSO", h:"BP SO%", d:2, suf:"%"},
+  {k:"runsL3", h:"Runs L3", d:2},
+  {k:"ops", h:"OPS", d:3},
+  {k:"opsL3", h:"OPS L3", d:3},
+];
+const scoreCols = [
+  {k:"xERA", h:"xERA"},{k:"ops", h:"OPS"},{k:"bullpen", h:"BP"},{k:"runsL3", h:"Runs L3"},{k:"opsL3", h:"OPS L3"},
+];
+
+function fmt(v,d){ return (v===null||v===undefined||isNaN(v))? "—" : (+v).toFixed(d); }
+
+function render(){
+  const rows = S.rows.map(scoreRow);
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const ha = document.getElementById('haFilter').value;
+  const minS = +document.getElementById('minScore').value || 0;
+
+  let view = rows.filter(r=>{
+    if(ha && r.ha!==ha) return false;
+    if(minS>0 && (r.total===null || r.total<minS)) return false;
+    if(q){
+      const hay = (r.team+" "+r.abbr+" "+r.pitcher+" "+r.oppPitcher+" "+r.game+" "+r.opp).toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  view.sort((a,b)=>{
+    let av, bv;
+    if(sortKey==="total"){ av=a.total; bv=b.total; }
+    else if(sortKey in a.s){ av=a.s[sortKey]; bv=b.s[sortKey]; }
+    else if(["team","game","pitcher","oppPitcher","ha"].includes(sortKey)){
+      av=(a[sortKey]||"").toLowerCase(); bv=(b[sortKey]||"").toLowerCase();
+      return av<bv?-sortDir:av>bv?sortDir:0;
+    }
+    else { av=a[sortKey]; bv=b[sortKey]; }
+    if(av===null||av===undefined||isNaN(av)) av=-Infinity;
+    if(bv===null||bv===undefined||isNaN(bv)) bv=-Infinity;
+    return (av-bv)*sortDir;
+  });
+
+  const th = (k,label,cls="")=>{
+    const sorted = sortKey===k ? "sorted":"";
+    const arrow = sortKey===k ? (sortDir<0?"▼":"▲") : "";
+    return `<th class="${cls} ${sorted}" data-sort="${k}">${label} <span class="arrow">${arrow}</span></th>`;
+  };
+
+  let head = `<thead><tr>
+    ${th("game","Game","l")}
+    ${th("team","Team","l")}
+    ${th("ha","","l")}
+    ${th("pitcher","SP","l")}
+    ${th("oppPitcher","Opp SP","l")}`;
+  if(showInputs){
+    head += `<th class="grp groupsep" colspan="${inputCols.length}">Raw inputs</th>`;
+  }
+  head += `<th class="grp groupsep" colspan="${scoreCols.length}">Sub-scores (0–100)</th>
+    ${th("total","Score","groupsep")}
+  </tr><tr>
+    <th class="l"></th><th class="l"></th><th class="l"></th><th class="l"></th><th class="l"></th>`;
+  if(showInputs){
+    inputCols.forEach((c,i)=> head += th(c.k, c.h, i===0?"groupsep":""));
+  }
+  scoreCols.forEach((c,i)=> head += th(c.k, c.h, i===0?"groupsep":""));
+  head += `<th class="groupsep sorted" data-sort="total"></th></tr></thead>`;
+
+  let body = "<tbody>";
+  for(const r of view){
+    body += `<tr>
+      <td class="l sub">${r.game}</td>
+      <td class="l"><span class="team">${r.abbr}</span> <span class="sub">${r.team}</span></td>
+      <td class="l"><span class="ha ${r.ha}">${r.ha}</span></td>
+      <td class="l">${r.pitcher||'<span class="sub">TBD</span>'}</td>
+      <td class="l">${r.oppPitcher||'<span class="sub">TBD</span>'}</td>`;
+    if(showInputs){
+      inputCols.forEach((c,i)=>{
+        const v = r[c.k];
+        body += `<td class="${v===null||v===undefined||isNaN(v)?'na':''} ${i===0?'groupsep':''}">${v===null||v===undefined||isNaN(v)?'—':fmt(v,c.d)+(c.suf||'')}</td>`;
+      });
+    }
+    scoreCols.forEach((c,i)=>{
+      const v = r.s[c.k];
+      const bg = heat(v);
+      const style = v===null?'':`background:${bg}22;color:${bg};`;
+      body += `<td class="cellscore ${i===0?'groupsep':''}" style="${style}">${v===null?'—':v.toFixed(0)}</td>`;
+    });
+    // total
+    if(r.total===null){
+      body += `<td class="groupsep na">—</td>`;
+    } else {
+      body += `<td class="groupsep"><span class="score" style="background:${heat(r.total)}">${r.total.toFixed(1)}</span></td>`;
+    }
+    body += `</tr>`;
+  }
+  body += "</tbody>";
+
+  document.getElementById('tbl').innerHTML = head + body;
+  document.getElementById('count').textContent = `${view.length} of ${rows.length} teams`;
+
+  document.querySelectorAll('#tbl th[data-sort]').forEach(h=>{
+    h.onclick = ()=>{
+      const k = h.dataset.sort;
+      if(sortKey===k) sortDir*=-1;
+      else { sortKey=k; sortDir = ["team","game","pitcher","oppPitcher","ha"].includes(k)?1:-1; }
+      render();
+    };
+  });
+
+  renderMatchups();
+}
+
+/* ---------- matchups: spreads & combined totals ---------- */
+function chip(v){
+  if(v===null||v===undefined||isNaN(v)) return '<span class="mini na" style="background:none;color:#5b6672">—</span>';
+  return `<span class="mini" style="background:${heat(v)}">${v.toFixed(1)}</span>`;
+}
+/* Frozen park run-environment table — regressed ~50% toward neutral from our
+   2024-26 home/road backtest. Only EXTREME parks are tagged; the rest are neutral
+   (no tag). This is display context on TOTALS only — it never touches the score. */
+const PARK = {
+  COL:{pf:13,t:'over'}, ATH:{pf:9,t:'over'}, PHI:{pf:5,t:'over'}, PIT:{pf:4,t:'over'},
+  SEA:{pf:-10,t:'under'}, TEX:{pf:-8,t:'under'}, CHC:{pf:-5,t:'under',w:1},
+  STL:{pf:-5,t:'under'}, SD:{pf:-4,t:'under'}, MIL:{pf:-4,t:'under'}
+};
+function parkTag(abbr){
+  const p = PARK[abbr];
+  if(!p) return '<span class="sub" style="opacity:.45">neutral</span>';
+  const cls = p.t==='over' ? 'pk-over' : 'pk-under';
+  const label = (p.t==='over'?'Over ':'Under ') + (p.pf>0?'+':'') + p.pf + '%' + (p.w?' ~wind':'');
+  return `<span class="pk ${cls}">${label}</span>`;
+}
+function renderMatchups(){
+  const scored = SLATE.rows.map(scoreRow);
+  const byGame = {};
+  for(const r of scored){ (byGame[r.game] ||= {label:r.game}); byGame[r.game][r.ha]=r; }
+  const data = Object.values(byGame).map(g=>{
+    const A=g.Away, H=g.Home, ta=A?A.total:null, th=H?H.total:null;
+    const ok = ta!==null && th!==null;
+    return { label:g.label, A, H, ta, th,
+      spread: ok?Math.abs(ta-th):null, combined: ok?ta+th:null,
+      lean: ok?(ta>=th?A:H):null };
+  });
+
+  // Spreads
+  const bySpread=[...data].sort((a,b)=>(b.spread??-1)-(a.spread??-1));
+  let s = `<thead><tr><th class="l">#</th><th class="l">Game</th><th>Away</th><th>Home</th>
+           <th class="groupsep">Spread</th><th class="l">Lean</th></tr></thead><tbody>`;
+  bySpread.forEach((d,i)=>{
+    s += `<tr>
+      <td class="l sub">${i+1}</td>
+      <td class="l">${d.label}</td>
+      <td>${d.A?d.A.abbr:''} ${chip(d.ta)}</td>
+      <td>${d.H?d.H.abbr:''} ${chip(d.th)}</td>
+      <td class="groupsep">${d.spread===null?'<span class="sub">—</span>':`<span class="mini" style="background:${heat(Math.min(100,d.spread*2.2))}">${d.spread.toFixed(1)}</span>`}</td>
+      <td class="l">${d.lean?`<span class="lean">${d.lean.abbr}</span> <span class="sub">${d.lean.team}</span>`:'<span class="sub">TBD</span>'}</td>
+    </tr>`;
+  });
+  s += `</tbody>`;
+  document.getElementById('tblSpread').innerHTML = s;
+
+  // Combined totals
+  const byTot=[...data].sort((a,b)=>(b.combined??-1)-(a.combined??-1));
+  let t = `<thead><tr><th class="l">#</th><th class="l">Game</th><th>Away</th><th>Home</th>
+           <th class="groupsep">Combined</th><th class="l">Park</th></tr></thead><tbody>`;
+  byTot.forEach((d,i)=>{
+    t += `<tr>
+      <td class="l sub">${i+1}</td>
+      <td class="l">${d.label}</td>
+      <td>${d.A?d.A.abbr:''} ${chip(d.ta)}</td>
+      <td>${d.H?d.H.abbr:''} ${chip(d.th)}</td>
+      <td class="groupsep">${d.combined===null?'<span class="sub">—</span>':`<span class="mini" style="background:${heat(d.combined/2)}">${d.combined.toFixed(1)}</span>`}</td>
+      <td class="l">${d.H?parkTag(d.H.abbr):''}</td>
+    </tr>`;
+  });
+  t += `</tbody>`;
+  document.getElementById('tblTotal').innerHTML = t;
+}
+
+/* ---------- reference tables ---------- */
+function refTable(id, cols, data, opts={}){
+  const {d=2, sortCol=2, dir=-1} = opts;
+  let rows = data.slice();
+  let head = "<thead><tr>" + cols.map((c,i)=>`<th class="${i<2?'l':''}" data-i="${i}">${c}</th>`).join("") + "</tr></thead>";
+  function draw(sc,dr){
+    rows.sort((a,b)=>{
+      let av=a[sc], bv=b[sc];
+      if(typeof av==="string") return av.toLowerCase()<bv.toLowerCase()?-dr:av.toLowerCase()>bv.toLowerCase()?dr:0;
+      return (av-bv)*dr;
+    });
+    let body="<tbody>"+rows.map(r=>"<tr>"+r.map((v,i)=>{
+      if(i<2) return `<td class="l ${i===1?'team':''}">${v}</td>`;
+      return `<td>${typeof v==='number'? v.toFixed(d):v}</td>`;
+    }).join("")+"</tr>").join("")+"</tbody>";
+    document.getElementById(id).innerHTML = head+body;
+    document.querySelectorAll('#'+id+' th').forEach(h=>{
+      h.onclick=()=>{ const i=+h.dataset.i; draw(i, i===sc? -dr : (i<2?1:-1)); };
+    });
+  }
+  draw(sortCol,dir);
+}
+function buildRefs(){
+  refTable('tblRuns', ["Rk","Team","2026","Last 3","Last 1","Home","Away","2025"], S.runsRank, {d:2,sortCol:2,dir:-1});
+  refTable('tblOps',  ["Rk","Team","2026","Last 3","Last 1","Home","Away","2025"], S.opsRank, {d:3,sortCol:2,dir:-1});
+  refTable('tblBullpen', ["Team","ERA","WHIP","BB","SO","BB/SO %"], S.bullpen.map(r=>[r[0],r[1],r[2],r[3],r[4],r[5]]), {d:2,sortCol:1,dir:1});
+}
+
+/* ---------- tabs & controls ---------- */
+document.querySelectorAll('#tabs .tab').forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll('#tabs .tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    ['slate','matchups','runs','ops','bullpen'].forEach(v=>{
+      document.getElementById('view-'+v).style.display = (v===t.dataset.tab)?'':'none';
+    });
+  };
+});
+document.getElementById('q').oninput = render;
+document.getElementById('haFilter').onchange = render;
+document.getElementById('minScore').oninput = render;
+document.getElementById('toggleInputs').onclick = (e)=>{
+  showInputs=!showInputs; e.target.classList.toggle('on',showInputs);
+  e.target.textContent = showInputs? "Hide raw inputs":"Show raw inputs";
+  render();
+};
+document.getElementById('toggleWeights').onclick = (e)=>{
+  const w=document.getElementById('weights'); const open=w.classList.toggle('open');
+  e.target.classList.toggle('on',open);
+};
+
+buildWeights();
+buildRefs();
+render();
+</script>
+</body>
+</html>

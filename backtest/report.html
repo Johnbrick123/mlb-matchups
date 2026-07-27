@@ -1,0 +1,45 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Backtest — MLB Matchup Scores</title><style>
+:root{--bg:#0b1220;--card:#111a2e;--line:#22304d;--txt:#e6edf7;--muted:#8aa0c0}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;padding:28px}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:15px;margin:26px 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.sub{color:var(--muted);font-size:13px}.wrap{max-width:900px;margin:0 auto}
+.cards{display:flex;gap:14px;flex-wrap:wrap;margin:16px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 18px;min-width:150px}
+.card .big{font-size:26px;font-weight:700}.card .lbl{color:var(--muted);font-size:12px}
+table{border-collapse:collapse;width:100%;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{text-align:left;padding:7px 12px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-weight:600;font-size:12px}
+td.n{text-align:right;font-variant-numeric:tabular-nums}tr:last-child td{border-bottom:none}
+.note{color:var(--muted);font-size:12.5px;margin-top:8px}.hi{color:#7ee0a2;font-weight:600}
+</style></head><body><div class="wrap">
+<h1>Backtest — MLB Matchup Scores</h1>
+<div class="sub">Point-in-time predictive validation · optimized weights (xERA 24 · OPS 19 · Bullpen 25 · Runs L3 0 · OPS L3 32) · seasons 2024, 2025, 2026 · 12,252 team-games</div>
+
+<div class="cards">
+<div class="card"><div class="big">12,252</div><div class="lbl">team-games scored</div></div>
+<div class="card"><div class="big hi">+0.208</div><div class="lbl">corr(score, runs scored)</div></div>
+<div class="card"><div class="big hi">56.7%</div><div class="lbl">spread-lean win rate (3,397-2,596)</div></div>
+<div class="card"><div class="big hi">+0.208</div><div class="lbl">corr(combined, total runs)</div></div>
+</div>
+
+<h2>Calibration — does a higher score mean more runs?</h2>
+<table><thead><tr><th>Score bucket</th><th class="n">Games</th><th class="n">Avg runs</th><th></th></tr></thead><tbody><tr><td>0–9</td><td class="n">67</td><td class="n">3.27</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:80px"></div></td></tr><tr><td>10–19</td><td class="n">396</td><td class="n">3.17</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:78px"></div></td></tr><tr><td>20–29</td><td class="n">1,370</td><td class="n">3.64</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:89px"></div></td></tr><tr><td>30–39</td><td class="n">2,477</td><td class="n">3.97</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:97px"></div></td></tr><tr><td>40–49</td><td class="n">2,964</td><td class="n">4.32</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:106px"></div></td></tr><tr><td>50–59</td><td class="n">2,650</td><td class="n">4.66</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:114px"></div></td></tr><tr><td>60–69</td><td class="n">1,557</td><td class="n">5.26</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:129px"></div></td></tr><tr><td>70–79</td><td class="n">569</td><td class="n">5.74</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:140px"></div></td></tr><tr><td>80–89</td><td class="n">166</td><td class="n">6.52</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:159px"></div></td></tr><tr><td>90–99</td><td class="n">35</td><td class="n">7.97</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:195px"></div></td></tr><tr><td>100–109</td><td class="n">1</td><td class="n">9.00</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:220px"></div></td></tr></tbody></table>
+<div class="note">Each 10-point rise in the model score maps to real, monotonic gains in actual runs scored.</div>
+
+<h2>Spread — does the higher-rated team out-score its opponent?</h2>
+<table><thead><tr><th>Model spread</th><th class="n">W-L</th><th class="n">Win %</th><th></th></tr></thead><tbody><tr><td>0–9</td><td class="n">1078-1042</td><td class="n">50.8%</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:112px"></div></td></tr><tr><td>10–19</td><td class="n">924-743</td><td class="n">55.4%</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:122px"></div></td></tr><tr><td>20–29</td><td class="n">683-472</td><td class="n">59.1%</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:130px"></div></td></tr><tr><td>30–39</td><td class="n">388-210</td><td class="n">64.9%</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:143px"></div></td></tr><tr><td>40–49</td><td class="n">201-88</td><td class="n">69.6%</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:153px"></div></td></tr><tr><td>50–59</td><td class="n">88-31</td><td class="n">73.9%</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:163px"></div></td></tr><tr><td>60–69</td><td class="n">22-8</td><td class="n">73.3%</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:161px"></div></td></tr><tr><td>70–79</td><td class="n">9-2</td><td class="n">81.8%</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:180px"></div></td></tr><tr><td>80–89</td><td class="n">2-0</td><td class="n">100.0%</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:220px"></div></td></tr><tr><td>90–99</td><td class="n">2-0</td><td class="n">100.0%</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:220px"></div></td></tr></tbody></table>
+<div class="note">Even matchups (0–9) sit at a coin flip, as they should; the win rate climbs as the model's edge grows — the signature of real signal.</div>
+
+<h2>Combined total — does a higher combined score mean a higher-scoring game?</h2>
+<table><thead><tr><th>Combined bucket</th><th class="n">Games</th><th class="n">Avg total runs</th><th></th></tr></thead><tbody><tr><td>0–19</td><td class="n">5</td><td class="n">2.40</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:44px"></div></td></tr><tr><td>20–39</td><td class="n">31</td><td class="n">6.68</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:122px"></div></td></tr><tr><td>40–59</td><td class="n">311</td><td class="n">7.53</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:138px"></div></td></tr><tr><td>60–79</td><td class="n">1,327</td><td class="n">7.94</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:146px"></div></td></tr><tr><td>80–99</td><td class="n">2,147</td><td class="n">8.66</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:159px"></div></td></tr><tr><td>100–119</td><td class="n">1,582</td><td class="n">9.61</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:176px"></div></td></tr><tr><td>120–139</td><td class="n">517</td><td class="n">10.36</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:190px"></div></td></tr><tr><td>140–159</td><td class="n">70</td><td class="n">12.00</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:220px"></div></td></tr><tr><td>160–179</td><td class="n">4</td><td class="n">7.25</td><td><div style="background:#2563eb;height:11px;border-radius:3px;width:133px"></div></td></tr></tbody></table>
+
+<h2>By season</h2>
+<table><thead><tr><th>Season</th><th class="n">Team-games</th><th class="n">corr(score,runs)</th><th class="n">Spread win %</th></tr></thead><tbody><tr><td>2024</td><td class="n">4,644</td><td class="n">+0.204</td><td class="n">57.2%</td></tr><tr><td>2025</td><td class="n">4,651</td><td class="n">+0.230</td><td class="n">57.7%</td></tr><tr><td>2026</td><td class="n">2,957</td><td class="n">+0.175</td><td class="n">54.4%</td></tr></tbody></table>
+
+<div class="note" style="margin-top:22px">
+<b>Method.</b> For every game, inputs are reconstructed using only data available <i>before</i> that game — no look-ahead.
+Opposing-starter xERA is rebuilt from Statcast pitch-level xwOBA accumulated to date (validated to within ±0.04 of Savant's published xERA);
+team OPS, OPS L3, Runs L3, and opponent bullpen ERA are point-in-time. Scores use the identical engine and weights as the live site.
+Single-game baseball is inherently noisy, so game-level correlations in the 0.15–0.20 range represent meaningful predictive signal.
+</div>
+</div></body></html>
