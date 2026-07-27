@@ -4,9 +4,11 @@ name: Refresh MLB data
 # makes GitHub Pages redeploy the site automatically. No laptop needed.
 
 on:
+  # Times are UTC (GitHub cron has no timezone). UTC-5 = Central during the season (CDT).
   schedule:
-    - cron: '0 14 * * *'   # ~10am ET (morning slate + probables)
-    - cron: '0 17 * * *'   # ~1pm ET  (catch late-announced starters / scratches)
+    - cron: '0 13 * * *'   # 8am CT  — morning probables
+    - cron: '0 15 * * *'   # 10am CT — lineups/starters firming up
+    - cron: '0 20 * * *'   # 3pm CT  — late scratches & pitching changes
   workflow_dispatch: {}     # lets you trigger a refresh by hand from the Actions tab
 
 permissions:
