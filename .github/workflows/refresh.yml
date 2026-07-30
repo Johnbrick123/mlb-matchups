@@ -6,9 +6,10 @@ name: Refresh MLB data
 on:
   # Times are UTC (GitHub cron has no timezone). UTC-5 = Central during the season (CDT).
   schedule:
-    - cron: '0 13 * * *'   # 8am CT  — morning probables
-    - cron: '0 15 * * *'   # 10am CT — lineups/starters firming up
-    - cron: '0 20 * * *'   # 3pm CT  — late scratches & pitching changes
+    - cron: '10 10 * * *'  # 5:10am CT — early refresh
+    - cron: '15 12 * * *'  # 7:15am CT — probables/lineups firming up
+    - cron: '0 14 * * *'   # 9:00am CT — lineups set
+    - cron: '0 19 * * *'   # 2:00pm CT — late scratches & pitching changes
   workflow_dispatch: {}     # lets you trigger a refresh by hand from the Actions tab
 
 permissions:
