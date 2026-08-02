@@ -3,16 +3,16 @@
 Fully rebuild data.js for the MLB Matchup Scores site — auto-pulls everything.
 
 Sources (all free, no keys):
-  - MLB StatsAPI  : schedule, probable pitchers + ids, bullpen (relief-only) ERA/BB/SO
+  - MLB StatsAPI  : schedule, probable pitchers + ids, bullpen (relief-only) ERA/BB/SO,
+                    team OPS + runs/game (season / last 3 / last 1 / home / away / prev)
   - Baseball Savant: opposing-starter xERA (expected_statistics leaderboard CSV)
-  - TeamRankings  : team OPS + runs/game (season / last 3 / last 1 / home / away / prev)
 
 Usage:
   python update.py                 # today
   python update.py 2026-07-25      # a specific date
   python update.py 2026-07-25 out.js   # write somewhere else (won't touch data.js)
 """
-import json, sys, os, csv, io, re, datetime, urllib.request
+import json, sys, os, csv, io, re, datetime, urllib.request, urllib.parse, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 UA = {"User-Agent": "Mozilla/5.0 (mlb-compare updater)"}
@@ -27,11 +27,11 @@ TEAMS = [
     ("TB",139,"Tampa Bay"),("TEX",140,"Texas"),("TOR",141,"Toronto"),("MIN",142,"Minnesota"),
     ("PHI",143,"Philadelphia"),("ATL",144,"Atlanta"),("CHW",145,"Chi Sox"),("MIA",146,"Miami"),
     ("NYY",147,"NY Yankees"),("MIL",158,"Milwaukee"),
-    # this is a test comment, please remove later,
 ]
 ID2ABBR = {i: a for a, i, _ in TEAMS}
 TR2ABBR = {tr: a for a, _, tr in TEAMS}
 ABBR_ID = {a: i for a, i, _ in TEAMS}
+ID2NAME = {i: tr for _, i, tr in TEAMS}
 
 def get(url, timeout=25, tries=3):
     last = None
@@ -73,22 +73,96 @@ def fetch_xera(year, min_ok=200):
     raise RuntimeError(f"Baseball Savant returned only {last} pitchers (expected >= {min_ok}); "
                        f"try again in a moment.")
 
-# ---------- TeamRankings tables ----------
-def fetch_tr(stat_slug):
-    """Return {abbr: [v2026, last3, last1, home, away, v2025]} and the display rows."""
-    html = get(f"https://www.teamrankings.com/mlb/stat/{stat_slug}")
-    body = re.search(r"<tbody>(.*?)</tbody>", html, re.S)
-    if not body: return {}, []
-    by_abbr, display = {}, []
-    for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", body.group(1), re.S):
-        cells = [re.sub(r"<[^>]+>", "", c).strip() for c in re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S)]
-        if len(cells) < 8: continue
-        rank, name = cells[0], cells[1]
-        vals = [num(c.replace("--", "")) for c in cells[2:8]]
-        abbr = TR2ABBR.get(name)
-        if abbr: by_abbr[abbr] = vals
-        display.append([num(rank), name] + vals)
-    return by_abbr, display
+# ---------- Team OPS + runs/game (MLB StatsAPI) ----------
+# Replaces the old TeamRankings HTML scrape, which broke silently whenever their
+# markup changed (see git history around 2026-08-01: runsRank/opsRank went empty).
+#
+# Column order everywhere below is: [season, last3, last1, home, away, prev]
+SEASON, LAST3, LAST1, HOME, AWAY, PREV = range(6)
+
+def team_hitting(**params):
+    """GET /teams/stats for hitting and return the raw splits list.
+
+    NOTE: the API defaults to 50 rows, which silently drops teams on any call
+    that returns more than that (30 teams x 2 home/away splits = 60). Always
+    send an explicit limit.
+    """
+    q = {"sportIds": 1, "group": "hitting", "gameType": "R", **params}
+    url = f"https://statsapi.mlb.com/api/v1/teams/stats?{urllib.parse.urlencode(q)}"
+    d = json.loads(get(url))
+    st = d.get("stats") or []
+    return st[0].get("splits", []) if st else []
+
+def runs_per_game(stat):
+    r, g = num(stat.get("runs")), num(stat.get("gamesPlayed"))
+    return round(r / g, 2) if r is not None and g else None
+
+def ops_val(stat):
+    v = num(stat.get("ops"))
+    return round(v, 3) if v is not None else None
+
+def last_x(season, n):
+    """{abbr: stat} for each team's last n games.
+
+    'limit' on stats=lastXGames sets BOTH the number of games and the number of
+    rows returned, so a league-wide call yields only n teams -- page through with
+    offset to cover all 30. (The per-team endpoint ignores limit entirely and
+    returns full-season numbers, which would silently mislabel season as last-3.)
+    """
+    out = {}
+    for off in range(0, 30, n):
+        for s in team_hitting(season=season, stats="lastXGames", limit=n, offset=off):
+            a = ID2ABBR.get((s.get("team") or {}).get("id"))
+            if a and a not in out:
+                out[a] = s.get("stat", {})
+    return out
+
+def fetch_team_tables(season):
+    """Return (ops_by, ops_disp, runs_by, runs_disp) — same shapes fetch_tr used."""
+    prev = str(int(season) - 1)
+    runs = {a: [None]*6 for a in ABBR_ID}
+    ops  = {a: [None]*6 for a in ABBR_ID}
+
+    def put(idx, stat_by_abbr):
+        for a, stat in stat_by_abbr.items():
+            runs[a][idx] = runs_per_game(stat)
+            ops[a][idx]  = ops_val(stat)
+
+    def by_abbr(splits):
+        return {ID2ABBR[s["team"]["id"]]: s.get("stat", {})
+                for s in splits
+                if ID2ABBR.get((s.get("team") or {}).get("id"))}
+
+    put(SEASON, by_abbr(team_hitting(season=season, stats="season", limit=200)))
+    put(PREV,   by_abbr(team_hitting(season=prev,   stats="season", limit=200)))
+
+    ha = team_hitting(season=season, stats="statSplits", sitCodes="h,a", limit=200)
+    for code, idx in (("h", HOME), ("a", AWAY)):
+        put(idx, by_abbr([s for s in ha if (s.get("split") or {}).get("code") == code]))
+
+    put(LAST3, last_x(season, 3))
+    put(LAST1, last_x(season, 1))
+
+    return ops, rank_rows(ops, 3), runs, rank_rows(runs, 2)
+
+def rank_rows(by_abbr, digits):
+    """[[rank, name, season, last3, last1, home, away, prev], ...] sorted best-first."""
+    have = [(a, v) for a, v in by_abbr.items() if v[SEASON] is not None]
+    have.sort(key=lambda kv: -kv[1][SEASON])
+    return [[i + 1, ID2NAME[ABBR_ID[a]]] + [round(x, digits) if x is not None else None for x in v]
+            for i, (a, v) in enumerate(have)]
+
+def check_complete(label, by_abbr, need=30):
+    """Refuse to publish a half-empty table. The 2026-08-01 outage overwrote good
+    data with [] for two days because nothing here ever failed loudly."""
+    n = sum(1 for v in by_abbr.values() if v[SEASON] is not None)
+    if n < need:
+        raise RuntimeError(f"{label}: only {n}/{need} teams had season data — "
+                           f"refusing to overwrite data.js with a partial table.")
+    for idx, name in ((LAST3,"last3"), (LAST1,"last1"), (HOME,"home"), (AWAY,"away"), (PREV,"prev")):
+        m = sum(1 for v in by_abbr.values() if v[idx] is not None)
+        if m < need:
+            print(f"      ! {label}.{name}: {m}/{need} teams")
 
 # ---------- MLB bullpen (relief only) ----------
 def fetch_bullpen(team_id, season):
@@ -119,10 +193,11 @@ def main():
     print(f"[2/4] Baseball Savant xERA {year} …")
     xera = fetch_xera(year); print(f"      {len(xera)} pitchers")
 
-    print(f"[3/4] TeamRankings OPS + runs/game …")
-    ops_by, ops_disp   = fetch_tr("on-base-plus-slugging-pct")
-    runs_by, runs_disp = fetch_tr("runs-per-game")
-    print(f"      OPS teams {len(ops_by)}, runs teams {len(runs_by)}")
+    print(f"[3/4] MLB StatsAPI team OPS + runs/game …")
+    ops_by, ops_disp, runs_by, runs_disp = fetch_team_tables(year)
+    check_complete("ops", ops_by)
+    check_complete("runs", runs_by)
+    print(f"      OPS teams {len(ops_disp)}, runs teams {len(runs_disp)}")
 
     print(f"[4/4] MLB bullpens (relief split) …")
     team_ids = set()
@@ -156,9 +231,8 @@ def main():
                 "runsL3": r[1], "ops": o[0], "opsL3": o[1],
             })
 
-    # reference tables
-    runsRank = [[int(x[0]) if x[0] else i+1] + x[1:] for i, x in enumerate(runs_disp)]
-    opsRank  = [[int(x[0]) if x[0] else i+1] + x[1:] for i, x in enumerate(ops_disp)]
+    # reference tables (already ranked best-first by fetch_team_tables)
+    runsRank, opsRank = runs_disp, ops_disp
     bullpen_tbl = []
     for a, tid, _ in TEAMS:
         b = bull.get(a) or fetch_bullpen(tid, year)
@@ -202,7 +276,17 @@ window.SLATE = {{
   bullpen: {json.dumps(bullpen, ensure_ascii=False)}
 }};
 '''
-    open(path, "w", encoding="utf-8").write(js)
+    # Write to a temp file in the same dir, then atomically replace, so a crash
+    # mid-write can never leave a truncated data.js behind.
+    d = os.path.dirname(os.path.abspath(path)) or "."
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".data-", suffix=".js")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(js)
+        os.replace(tmp, path)
+    except Exception:
+        if os.path.exists(tmp): os.remove(tmp)
+        raise
 
 if __name__ == "__main__":
     main()
