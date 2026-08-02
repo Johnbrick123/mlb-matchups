@@ -27,6 +27,7 @@ TEAMS = [
     ("TB",139,"Tampa Bay"),("TEX",140,"Texas"),("TOR",141,"Toronto"),("MIN",142,"Minnesota"),
     ("PHI",143,"Philadelphia"),("ATL",144,"Atlanta"),("CHW",145,"Chi Sox"),("MIA",146,"Miami"),
     ("NYY",147,"NY Yankees"),("MIL",158,"Milwaukee"),
+    # ("TBR",161,"Tampa Bay Rays"),
 ]
 ID2ABBR = {i: a for a, i, _ in TEAMS}
 TR2ABBR = {tr: a for a, _, tr in TEAMS}
