@@ -1,3 +1,7 @@
 __pycache__/
 *.pyc
 backtest/cache/
+
+# scratch output from `python update.py <date> <file>` dry runs
+test-out.js
+.data-*.js
