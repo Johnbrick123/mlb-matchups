@@ -133,6 +133,10 @@
 
 <script src="data.js"></script>
 <script>
+if(!window.SLATE || !Array.isArray(window.SLATE.rows)){
+  document.body.innerHTML = '<div style="padding:40px;font:15px system-ui;color:#c33">data.js failed to load or is malformed — run <code>python update.py</code> (or check the last cloud refresh under Actions on GitHub).</div>';
+  throw new Error("data.js missing");
+}
 const S = window.SLATE;
 const W = {...S.weights};          // live-adjustable weights
 let sortKey = "total", sortDir = -1;
@@ -158,12 +162,19 @@ function scoreRow(r){
   const runsL3  = sub(r.runsL3, S.scales.runsL3);
   const parts = {xERA, ops, bullpen, runsL3, opsL3};
   // total requires opposing pitcher xERA (TBD starter => no total, like the sheet's #N/A)
-  let total = null;
+  // Any other missing input drops out and its weight is redistributed, instead of
+  // silently counting as a 0 sub-score. Such rows are flagged with "partial".
+  let total = null, partial = false;
   if(xERA!==null){
-    const wsum = W.xERA+W.ops+W.bullpen+W.runsL3+W.opsL3;
-    total = (xERA*W.xERA + ops*W.ops + bullpen*W.bullpen + runsL3*W.runsL3 + opsL3*W.opsL3)/wsum;
+    let num = 0, den = 0;
+    for(const k of Object.keys(W)){
+      const v = parts[k];
+      if(v===null || v===undefined || isNaN(v)){ if(W[k]>0) partial = true; continue; }
+      num += v*W[k]; den += W[k];
+    }
+    total = den>0 ? num/den : null;
   }
-  return {...r, s:parts, total};
+  return {...r, s:parts, total, partial};
 }
 function heat(v){ // 0..100 -> color
   if(v===null) return null;
@@ -181,7 +192,7 @@ function buildWeights(){
       <input type="range" min="0" max="60" step="1" value="${Math.round(W[k]*100)}" data-w="${k}">
     </div>`;
   }).join('') + `<div class="witem" style="align-self:end">
-      <button class="ghost" id="resetW">Reset to 40/30/10/10/10</button></div>
+      <button class="ghost" id="resetW">Reset to ${Object.keys(S.weights).map(k=>Math.round(S.weights[k]*100)).join('/')}</button></div>
     <div class="witem" style="align-self:end">
       <label><input type="checkbox" id="effToggle" checked> Effective bullpen input</label></div>`;
   el.querySelectorAll('input[type=range]').forEach(inp=>{
@@ -300,7 +311,8 @@ function render(){
     if(r.total===null){
       body += `<td class="groupsep na">—</td>`;
     } else {
-      body += `<td class="groupsep"><span class="score" style="background:${heat(r.total)}">${r.total.toFixed(1)}</span></td>`;
+      const flag = r.partial ? ` <span class="sub" title="an input is missing for this row; its weight was redistributed">*</span>` : ``;
+      body += `<td class="groupsep"><span class="score" style="background:${heat(r.total)}">${r.total.toFixed(1)}</span>${flag}</td>`;
     }
     body += `</tr>`;
   }
