@@ -5,3 +5,8 @@ backtest/cache/
 # scratch output from `python update.py <date> <file>` dry runs
 test-out.js
 .data-*.js
+
+# bullpen research cache
+research/bp_cache/
+research/bt_rows.json
+research/rescore_out.json
