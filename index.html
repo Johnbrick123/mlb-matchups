@@ -72,6 +72,11 @@
   <div class="spacer"></div>
   <div class="legend"><span>Low</span><span class="bar"></span><span>High spot for offense</span></div>
 </header>
+<div id="stale" hidden style="background:#5a2a00;color:#ffd9a8;padding:9px 20px;font-size:13px;border-bottom:1px solid #8a4a10">
+  ⚠ <b>This data is from <span id="staleDate"></span>, not today.</b> The cloud refresh probably failed —
+  check <a href="https://github.com/Johnbrick123/mlb-matchups/actions" style="color:#ffd9a8">the Actions page</a>
+  for the red run and its error. Scores below are yesterday's.
+</div>
 
 <div class="tabs" id="tabs">
   <div class="tab active" data-tab="slate">Slate</div>
@@ -148,6 +153,16 @@ let sortKey = "total", sortDir = -1;
 let showInputs = false;
 
 document.getElementById('dateLabel').textContent = S.date;
+// Stale-data warning: the first cloud refresh lands ~6am ET, so after 8am local
+// the file should always carry today's date. If it doesn't, say so loudly.
+(function(){
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  if(S.date < today && now.getHours() >= 8){
+    document.getElementById('staleDate').textContent = S.date;
+    document.getElementById('stale').hidden = false;
+  }
+})();
 
 /* ---------- scoring ---------- */
 function sub(val, sc){
