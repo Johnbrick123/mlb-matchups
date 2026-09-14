@@ -102,11 +102,14 @@ def recent_relief_log(end_date, days=15):
            for day in sched.get("dates", []) for g in day.get("games", [])
            if g.get("status", {}).get("codedGameState") == "F"]
 
+    failed = []
+
     def one(item):
         pk, date = item
         try:
             b = get(f"https://statsapi.mlb.com/api/v1/game/{pk}/boxscore")
         except Exception:
+            failed.append(pk)
             return []
         out = []
         for side in ("away", "home"):
@@ -127,6 +130,14 @@ def recent_relief_log(end_date, days=15):
     with ThreadPoolExecutor(16) as ex:
         for r in ex.map(one, pks):
             rows += r
+    if failed:
+        # A box score that silently drops out would understate that club's recent
+        # workload and quietly shift its L7/L14 line. Tolerate a stray miss, but
+        # refuse to build the layer from a materially incomplete log — the caller
+        # (update.py) then falls back to season ERA for everyone.
+        print(f"      ! {len(failed)}/{len(pks)} box scores failed to load: {failed[:5]}")
+        if len(failed) > max(1, len(pks) // 20):
+            raise RuntimeError(f"{len(failed)} of {len(pks)} box scores unavailable")
     return rows
 
 

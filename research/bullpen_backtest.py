@@ -11,7 +11,7 @@ import csv, os, sys, math, json, datetime
 import bullpen_core as bc
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-BT = os.path.join(HERE, "..", "repo", "backtest")
+BT = os.path.join(HERE, "..", "backtest")
 WARMUP_DAYS = 45          # need roster + L14 history before a row is usable
 
 

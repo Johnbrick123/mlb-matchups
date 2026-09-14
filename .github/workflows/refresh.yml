@@ -1,7 +1,11 @@
 name: Refresh MLB data
 
-# Runs update.py in the cloud on a schedule, commits the new data.js, which
-# makes GitHub Pages redeploy the site automatically. No laptop needed.
+# Runs update.py in the cloud on a schedule, verifies the result against the
+# live sources, and commits the new data.js only if it checks out. GitHub Pages
+# then redeploys the site automatically. No laptop needed.
+#
+# If a run fails, GitHub emails the repo owner and the run shows red under the
+# Actions tab; the previous data.js stays live until the next successful run.
 
 on:
   # Times are UTC (GitHub cron has no timezone). UTC-5 = Central during the season (CDT).
@@ -22,8 +26,10 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    timeout-minutes: 20      # a hung API call must not tie the job up for hours
     env:
       TZ: America/New_York   # so update.py's "today" is Eastern time, not UTC
+      PYTHONUNBUFFERED: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -33,6 +39,11 @@ jobs:
 
       - name: Regenerate data.js
         run: python update.py
+
+      - name: Verify data.js against the live sources
+        # Re-pulls every source independently and diffs field by field.
+        # Non-zero exit = mismatch = nothing gets committed.
+        run: python verify.py
 
       - name: Commit & push if data changed
         run: |

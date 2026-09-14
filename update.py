@@ -15,6 +15,11 @@ Usage:
 import json, sys, os, csv, io, re, datetime, urllib.request, urllib.parse, tempfile
 import bullpen_live
 
+try:  # Windows consoles default to cp1252 and choke on the "…" / "—" in our messages
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 UA = {"User-Agent": "Mozilla/5.0 (mlb-compare updater)"}
 
@@ -207,11 +212,22 @@ def main():
         team_ids.add(g["teams"]["home"]["team"]["id"])
     bull = {ID2ABBR.get(tid): fetch_bullpen(tid, year) for tid in team_ids}
     print(f"      {sum(1 for v in bull.values() if v)} bullpens")
+    no_pen = sorted(a for a, v in bull.items() if not v or v.get("era") is None)
+    if no_pen:
+        # A missing bullpen ERA would silently zero 25% of that row's score.
+        raise RuntimeError(f"no relief-split ERA for {no_pen} — refusing to publish a slate "
+                           f"with a hole in the bullpen column.")
 
     print(f"[5/5] Effective bullpen quality (season + L14 + L7) …")
     try:
         beff = bullpen_live.build(date)
-        print(f"      {sum(1 for v in beff.values() if v.get('eff') is not None)} teams scored")
+        scored = sum(1 for v in beff.values() if v.get("eff") is not None)
+        print(f"      {scored} teams scored")
+        if scored < 30:
+            # All-or-nothing: a board where some rows use the effective input and
+            # others fall back to season ERA is not comparable across games.
+            print(f"      ! only {scored}/30 clubs scored; using season ERA for everyone this run")
+            beff = {}
     except Exception as e:
         # Never let the new layer break the build — fall back to season ERA.
         print(f"      ! effective bullpen unavailable ({e}); falling back to season ERA")
@@ -262,6 +278,17 @@ def main():
                             v["q_season"], v["q_l14"], v["q_l7"],
                             v["eff"], v["effERA"], v["d3_ip"], v["d3_pitches"], v["down"]])
     bullpen_eff.sort(key=lambda r: (r[7] is None, -(r[7] or 0)))
+
+    # Last line of defence before overwriting data.js.
+    if games and not rows:
+        raise RuntimeError("schedule had games but no rows were built — not overwriting data.js")
+    if len(rows) != 2 * len(games):
+        raise RuntimeError(f"{len(rows)} rows for {len(games)} games — every game needs exactly two")
+    if len(bullpen_tbl) < 30:
+        raise RuntimeError(f"bullpen reference table has {len(bullpen_tbl)}/30 clubs — not overwriting data.js")
+    named = [r for r in rows if r["oppPitcher"]]
+    if named and all(r["oppXERA"] is None for r in named):
+        raise RuntimeError("every named opposing starter is missing xERA — Savant lookup is broken")
 
     write_js(out_path, date, rows, runsRank, opsRank, bullpen_tbl, bullpen_eff)
     print(f"\nWrote {out_path} — {len(rows)} team-rows.")
