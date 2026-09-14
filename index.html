@@ -32,6 +32,7 @@
   th,td{padding:7px 9px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
   th{position:sticky;top:0;background:var(--panel);color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.4px;cursor:pointer;user-select:none;z-index:2}
   th.grp{text-align:center}
+  tr.grp th{text-align:center;font-size:11px;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--line)}
   th .arrow{opacity:.4;font-size:10px}
   th.sorted{color:var(--txt)} th.sorted .arrow{opacity:1;color:var(--accent)}
   td.l,th.l{text-align:left}
@@ -115,7 +116,20 @@
 <!-- REFERENCE TABS -->
 <section id="view-runs" style="display:none"><div class="wrap"><table id="tblRuns"></table></div></section>
 <section id="view-ops" style="display:none"><div class="wrap"><table id="tblOps"></table></div></section>
-<section id="view-bullpen" style="display:none"><div class="wrap"><table id="tblBullpen"></table></div></section>
+<section id="view-bullpen" style="display:none">
+  <div class="wrap"><table id="tblBullpen"></table></div>
+  <div class="note">
+    <b>Effective quality</b> = 50% season + 30% last-14 + 20% last-7, each scored on
+    ERA + WHIP + K-BB% + HR/9 and mapped to the same 2.50–6.50 axis the model already uses.
+    Those weights were picked by backtest over 2024, 2025 and 2026; mixing time windows
+    beat season ERA alone in <b>all three seasons</b> (r vs runs 0.089 → 0.122).<br>
+    <b>3-day workload and arms-down are shown but carry zero weight.</b> They were tested and
+    add nothing — consistent with the 4-season finding that bullpen fatigue does not predict
+    runs allowed. Read them for the late innings, not as a betting input.<br>
+    <b>L7 is 15–25 innings.</b> One bad outing swings it two runs. That is why it gets 20%
+    and not more.
+  </div>
+</section>
 
 <script src="data.js"></script>
 <script>
@@ -132,9 +146,13 @@ function sub(val, sc){
   let p = (val - sc.min)/(sc.max - sc.min)*100;
   return Math.max(0, Math.min(100, p));
 }
+let useEffBullpen = true;   // effective bullpen on by default; toggle on the Slate tab
+function bullpenInput(r){
+  return (useEffBullpen && r.oppBullpenEff != null) ? r.oppBullpenEff : r.oppBullpenERA;
+}
 function scoreRow(r){
   const xERA    = sub(r.oppXERA, S.scales.xERA);
-  const bullpen = sub(r.oppBullpenERA, S.scales.bullpen);
+  const bullpen = sub(bullpenInput(r), S.scales.bullpen);
   const ops     = sub(r.ops, S.scales.ops);
   const opsL3   = sub(r.opsL3, S.scales.opsL3);
   const runsL3  = sub(r.runsL3, S.scales.runsL3);
@@ -163,10 +181,14 @@ function buildWeights(){
       <input type="range" min="0" max="60" step="1" value="${Math.round(W[k]*100)}" data-w="${k}">
     </div>`;
   }).join('') + `<div class="witem" style="align-self:end">
-      <button class="ghost" id="resetW">Reset to 40/30/10/10/10</button></div>`;
+      <button class="ghost" id="resetW">Reset to 40/30/10/10/10</button></div>
+    <div class="witem" style="align-self:end">
+      <label><input type="checkbox" id="effToggle" checked> Effective bullpen input</label></div>`;
   el.querySelectorAll('input[type=range]').forEach(inp=>{
     inp.oninput = ()=>{ W[inp.dataset.w] = (+inp.value)/100; render(); updateWeightLabels(); };
   });
+  const tg = document.getElementById('effToggle');
+  if(tg) tg.onchange = ()=>{ useEffBullpen = tg.checked; render(); renderMatchups(); };
   document.getElementById('resetW').onclick = ()=>{
     Object.assign(W, S.weights);
     el.querySelectorAll('input[type=range]').forEach(i=> i.value=Math.round(W[i.dataset.w]*100));
@@ -187,6 +209,7 @@ function updateWeightLabels(){
 const inputCols = [
   {k:"oppXERA", h:"Opp xERA", d:2},
   {k:"oppBullpenERA", h:"Opp BP ERA", d:2},
+  {k:"oppBullpenEff", h:"Opp BP Eff", d:2},
   {k:"bullpenSO", h:"BP SO%", d:2, suf:"%"},
   {k:"runsL3", h:"Runs L3", d:2},
   {k:"ops", h:"OPS", d:3},
@@ -390,7 +413,49 @@ function refTable(id, cols, data, opts={}){
 function buildRefs(){
   refTable('tblRuns', ["Rk","Team","2026","Last 3","Last 1","Home","Away","2025"], S.runsRank, {d:2,sortCol:2,dir:-1});
   refTable('tblOps',  ["Rk","Team","2026","Last 3","Last 1","Home","Away","2025"], S.opsRank, {d:3,sortCol:2,dir:-1});
-  refTable('tblBullpen', ["Team","ERA","WHIP","BB","SO","BB/SO %"], S.bullpen.map(r=>[r[0],r[1],r[2],r[3],r[4],r[5]]), {d:2,sortCol:1,dir:1});
+  renderBullpenTab();
+}
+
+/* ---------- three-layer bullpen tab ----------
+   TALENT  = season relief line (the official rp split, what the site always used)
+   FORM    = last 14 / last 7 days, rebuilt from box scores
+   TONIGHT = 3-day relief workload and arms that are likely unavailable
+   EFF     = 50% season + 30% L14 + 20% L7, each scored on ERA+WHIP+K-BB%+HR9.
+   Workload and availability are shown but carry NO weight — they were
+   backtested across 2024-25-26 and add nothing. See BULLPEN_FINDINGS.md. */
+function q3(v){ return v==null? '—' : (+v).toFixed(2); }
+function renderBullpenTab(){
+  const eff = S.bullpenEff || [];
+  const el = document.getElementById('tblBullpen');
+  if(!eff.length){
+    refTable('tblBullpen', ["Team","ERA","WHIP","BB","SO","BB/SO %"],
+             S.bullpen.map(r=>[r[0],r[1],r[2],r[3],r[4],r[5]]), {d:2,sortCol:1,dir:1});
+    return;
+  }
+  const head = `<thead>
+    <tr class="grp">
+      <th></th><th colspan="4">TALENT — season relief</th>
+      <th colspan="2">FORM</th>
+      <th colspan="2">TONIGHT</th><th colspan="2">EFFECTIVE</th><th></th></tr>
+    <tr><th>Team</th>
+      <th>ERA</th><th>WHIP</th><th>K-BB%</th><th>HR/9</th>
+      <th>L14 ERA</th><th>L7 ERA</th>
+      <th>3d IP</th><th>3d Pit</th>
+      <th>Quality</th><th>eff ERA</th><th style="text-align:left">Arms down</th></tr></thead>`;
+  const body = eff.map(r=>{
+    const [ab, szn, l14, l7, qs, q14, q7, q, effERA, ip3, np3, down] = r;
+    const c = heat(q);
+    return `<tr><td><b>${ab}</b></td>
+      <td>${q3(szn[0])}</td><td>${szn[1]==null?'—':(+szn[1]).toFixed(2)}</td>
+      <td>${szn[2]==null?'—':(+szn[2]).toFixed(1)+'%'}</td><td>${q3(szn[3])}</td>
+      <td style="background:${heat(q14)||'transparent'}22">${q3(l14[0])}</td>
+      <td style="background:${heat(q7)||'transparent'}22">${q3(l7[0])}</td>
+      <td>${ip3==null?'—':(+ip3).toFixed(1)}</td><td>${np3??'—'}</td>
+      <td style="background:${c};color:#fff;font-weight:650">${q==null?'—':q.toFixed(1)}</td>
+      <td>${q3(effERA)}</td>
+      <td style="font-size:12px;color:var(--muted);text-align:left;white-space:normal">${(down&&down.length)?down.join(', '):'—'}</td></tr>`;
+  }).join('');
+  el.innerHTML = head + '<tbody>' + body + '</tbody>';
 }
 
 /* ---------- tabs & controls ---------- */
