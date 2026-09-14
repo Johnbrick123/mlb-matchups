@@ -221,8 +221,9 @@ def main():
     print(f"[5/5] Effective bullpen quality (season + L14 + L7) …")
     try:
         beff = bullpen_live.build(date)
+        offset = beff.pop("_offset", 0.0)
         scored = sum(1 for v in beff.values() if v.get("eff") is not None)
-        print(f"      {scored} teams scored")
+        print(f"      {scored} teams scored (blend recentred by {offset:+.2f} ERA)")
         if scored < 30:
             # All-or-nothing: a board where some rows use the effective input and
             # others fall back to season ERA is not comparable across games.

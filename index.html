@@ -119,8 +119,13 @@
 <section id="view-bullpen" style="display:none">
   <div class="wrap"><table id="tblBullpen"></table></div>
   <div class="note">
+    <b>Reading this tab vs the Slate tab:</b> Quality here is how good the pen itself is (100 = elite).
+    On the Slate tab, the <b>Opp BP</b> sub-score is the opposite view — it grades the pen your
+    offense is <i>facing</i>, so a high number there means the opponent's pen is weak.
+    Roughly, Slate Opp BP ≈ 100 − opponent's Quality here.<br>
     <b>Effective quality</b> = 50% season + 30% last-14 + 20% last-7, each scored on
-    ERA + WHIP + K-BB% + HR/9 and mapped to the same 2.50–6.50 axis the model already uses.
+    ERA + WHIP + K-BB% + HR/9 and mapped to the same 2.50–6.50 axis the model already uses
+    (recentred each run so a league-average pen keeps its own season ERA; only recent form moves it).
     Those weights were picked by backtest over 2024, 2025 and 2026; mixing time windows
     beat season ERA alone in <b>all three seasons</b> (r vs runs 0.089 → 0.122).<br>
     <b>3-day workload and arms-down are shown but carry zero weight.</b> They were tested and
@@ -227,7 +232,7 @@ const inputCols = [
   {k:"opsL3", h:"OPS L3", d:3},
 ];
 const scoreCols = [
-  {k:"xERA", h:"xERA"},{k:"ops", h:"OPS"},{k:"bullpen", h:"BP"},{k:"runsL3", h:"Runs L3"},{k:"opsL3", h:"OPS L3"},
+  {k:"xERA", h:"Opp SP"},{k:"ops", h:"OPS"},{k:"bullpen", h:"Opp BP"},{k:"runsL3", h:"Runs L3"},{k:"opsL3", h:"OPS L3"},
 ];
 
 function fmt(v,d){ return (v===null||v===undefined||isNaN(v))? "—" : (+v).toFixed(d); }

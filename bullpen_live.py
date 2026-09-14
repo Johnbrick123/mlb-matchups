@@ -229,6 +229,21 @@ def build(date):
             "d3_pitches": sum(r["np"] for r in d3),
             "down": sorted(f"{nm.get(p, p)} ({why})" for p, why in all_down.get(tid, {}).items()),
         }
+
+    # Recentre. The four-stat blend and the plain ERA axis disagree about where
+    # "average" sits (the blend grades a league-average pen ~0.3 ERA harsher), so
+    # without this every effective ERA rides ~0.3 high and the totals board drifts
+    # up for no real reason. Shift so that, across the league, the SEASON layer's
+    # ERA-equivalent equals season ERA itself. Recent form (L14/L7 being better or
+    # worse than season) is deliberately left in — that is the signal we want.
+    # A constant shift never changes ranks, spreads, or the backtest correlations.
+    pairs = [(v["season"]["era"], ERA_HI - v["q_season"] / 100 * (ERA_HI - ERA_LO))
+             for v in out.values() if v.get("q_season") is not None and v["season"].get("era") is not None]
+    offset = (sum(a for a, _ in pairs) - sum(b for _, b in pairs)) / len(pairs) if pairs else 0.0
+    for v in out.values():
+        if v["effERA"] is not None:
+            v["effERA"] = round(max(ERA_LO, min(ERA_HI, v["effERA"] + offset)), 2)
+    out["_offset"] = round(offset, 2)
     return out
 
 
@@ -236,6 +251,7 @@ if __name__ == "__main__":
     import sys
     date = sys.argv[1] if len(sys.argv) > 1 else datetime.date.today().isoformat()
     v = build(date)
+    print(f"blend recentred by {v.pop('_offset'):+.2f} ERA")
     print(f"{'tm':<5}{'sznERA':>8}{'L14':>7}{'L7':>7}{'EFF':>7}{'effERA':>8}{'3dIP':>7}  arms down")
     for ab, t in sorted(v.items(), key=lambda kv: -(kv[1]["eff"] or 0)):
         g = lambda d: f"{d['era']:.2f}" if d.get("era") is not None else "  -  "

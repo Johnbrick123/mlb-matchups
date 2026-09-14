@@ -148,6 +148,15 @@ existing 2.50–6.50 axis so it drops into the current scale and weight machiner
 untouched. Roster, availability and workload are computed and displayed on the
 Bullpens tab, and carry **zero weight**.
 
+**Recentring (added 2026-09-14).** The four-stat blend grades a league-average
+pen about 0.3 ERA harsher than the plain ERA axis does (WHIP and K-BB% scales put
+the average pen near 45/100, ERA puts it near 59/100). Left alone, that lifted
+every effective ERA by ~0.3 and every combined total by 4–5 points for no real
+reason. `bullpen_live.build` now shifts all 30 effective ERAs by a single
+constant each run so that the season layer's ERA-equivalent averages to season
+ERA itself. Recent form is untouched. A constant shift changes no rank, no
+spread, and none of the correlations above.
+
 The Slate tab has an "Effective bullpen input" checkbox — on by default, uncheck
 to score with season ERA — so the two can be compared on a live board.
 

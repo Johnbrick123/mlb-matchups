@@ -51,7 +51,9 @@ Each sub-score rescales a stat to 0–100 (clamped):
 The 25% bullpen slot is fed by **Effective Bullpen Quality** rather than raw
 season relief ERA: 50% season + 30% last-14 + 20% last-7, each layer scored on
 ERA (40%) + WHIP (25%) + K-BB% (25%) + HR/9 (10%), then mapped back onto the same
-2.50–6.50 axis so the slot's weight and scale are unchanged. Weights were chosen by
+2.50–6.50 axis so the slot's weight and scale are unchanged (recentred each run
+so a league-average pen keeps its own season ERA — only recent form moves the
+number). Weights were chosen by
 backtest over 2024–26 (`BULLPEN_FINDINGS.md`); the improvement is real but small
 (r vs runs 0.089 → 0.122) and has **not** been tested against a betting line.
 `bullpen_live.py` computes it; if it cannot, `update.py` uses season ERA for every

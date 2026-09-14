@@ -157,6 +157,7 @@ def bullpen(D, rep):
     date, rows = D["date"], D["rows"]
     print("   rebuilding effective bullpen from MLB box scores …")
     beff = bl.build(date)
+    beff.pop("_offset", None)
     scored = sum(1 for v in beff.values() if v.get("eff") is not None)
     rep.check("teams scored", scored == 30, f"only {scored}/30 clubs have an effective score")
     for r in rows:
