@@ -187,6 +187,26 @@ def probable(side):
     p = side.get("probablePitcher") or {}
     return p.get("fullName", ""), p.get("id")
 
+def game_labels(games):
+    """One label per game, in schedule order. A doubleheader gets "(G1)"/"(G2)"
+    so its two games never share a label: the site and verify.py group rows by
+    label, and a shared one makes game 2 silently overwrite game 1."""
+    base = [f'{ID2ABBR.get(g["teams"]["away"]["team"]["id"], "AWY")} @ '
+            f'{ID2ABBR.get(g["teams"]["home"]["team"]["id"], "HOM")}' for g in games]
+    labels = list(base)
+    for b in set(base):
+        idx = [i for i, x in enumerate(base) if x == b]
+        if len(idx) < 2:
+            continue
+        nums = [games[i].get("gameNumber") for i in idx]
+        if None in nums or len(set(nums)) != len(nums):
+            nums = range(1, len(idx) + 1)          # MLB numbering unusable: fall back to schedule order
+        for i, n in zip(idx, nums):
+            labels[i] = f"{b} (G{n})"
+    if len(set(labels)) != len(labels):
+        raise RuntimeError(f"duplicate game labels {labels} — rows would collide")
+    return labels
+
 def main():
     date = sys.argv[1] if len(sys.argv) > 1 else datetime.date.today().isoformat()
     out_path = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, "data.js")
@@ -236,12 +256,11 @@ def main():
 
     # build rows
     rows, missing = [], []
-    for g in games:
+    for g, label in zip(games, game_labels(games)):
         aw, hm = g["teams"]["away"], g["teams"]["home"]
         aid, hid = aw["team"]["id"], hm["team"]["id"]
         aab, hab = ID2ABBR.get(aid, "AWY"), ID2ABBR.get(hid, "HOM")
         ap_name, ap_id = probable(aw); hp_name, hp_id = probable(hm)
-        label = f"{aab} @ {hab}"
         for me, opp, ha, my_p, opp_p, opp_id in [
             (aab, hab, "Away", ap_name, hp_name, hp_id),
             (hab, aab, "Home", hp_name, ap_name, ap_id),

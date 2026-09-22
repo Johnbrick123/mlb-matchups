@@ -57,6 +57,12 @@ def load(path):
             "weights": re.search(r'weights: \{[^}]*\}', txt).group(0)}
 
 
+def teams_of(label):
+    """("TB", "NYY") from "TB @ NYY" or a doubleheader's "TB @ NYY (G2)"."""
+    a, b = re.sub(r" \(G\d+\)$", "", label).split(" @ ")
+    return a, b
+
+
 def close(a, b, tol=0.02):
     if a is None or b is None: return a is None and b is None
     return abs(a - b) <= tol
@@ -100,9 +106,10 @@ def schema(D, path, rep):
             v = r.get(k)
             rep.check("row range", v is None or lo <= v <= hi, f"{tag}: {k}={v} outside {lo}-{hi}")
     games = {}
-    for r in rows: games.setdefault(r["game"], set()).add(r["ha"])
+    for r in rows: games.setdefault(r["game"], []).append(r["ha"])
     for g, s in games.items():
-        rep.check("game pairs", s == {"Home", "Away"}, f"{g}: has {sorted(s)}")
+        # exactly one Away + one Home per label; 4 rows here = a doubleheader sharing a label
+        rep.check("game pairs", sorted(s) == ["Away", "Home"], f"{g}: has {sorted(s)}")
     for name, need in (("runsRank", 30), ("opsRank", 30), ("bullpen", 30), ("bullpenEff", 30)):
         t = D[name]
         rep.check(name, isinstance(t, list) and len(t) >= need,
@@ -119,22 +126,26 @@ def slate(D, rep):
     games = U.fetch_schedule(date)
     xera = U.fetch_xera(year)
     ops_by, _, runs_by, _ = U.fetch_team_tables(year)
-    prob = {}
+    prob = {}   # (game label, team) -> probable; keyed by game so doubleheaders don't collide
     ids = set()
-    for g in games:
+    labels = U.game_labels(games)
+    for g, label in zip(games, labels):
         for side in ("away", "home"):
             t = g["teams"][side]; ab = U.ID2ABBR.get(t["team"]["id"]); ids.add(t["team"]["id"])
-            prob[ab] = U.probable(t)
+            prob[(label, ab)] = U.probable(t)
     bull = {U.ID2ABBR.get(i): U.fetch_bullpen(i, year) for i in ids}
 
     rep.check("game count", len(rows) == 2 * len(games), f"data.js has {len(rows)} rows, MLB shows {len(games)} games")
+    have = sorted({r["game"] for r in rows})
+    rep.check("game labels", have == sorted(labels), f"data.js {have}  live {sorted(labels)}")
     for r in rows:
         ab = r["abbr"]
-        a, b = r["game"].split(" @ ")
+        a, b = teams_of(r["game"])
         opp = b if ab == a else a
+        p = prob.get((r["game"], opp), ("", None))
         want = {
-            "oppPitcher": prob.get(opp, ("", None))[0] or "",
-            "oppId": prob.get(opp, ("", None))[1],
+            "oppPitcher": p[0] or "",
+            "oppId": p[1],
             "oppXERA": xera.get(str(int(r["oppId"]))) if r["oppId"] else None,
             "oppBullpenERA": (bull.get(opp) or {}).get("era"),
             "bullpenSO": (bull.get(opp) or {}).get("bbso"),
@@ -162,7 +173,7 @@ def bullpen(D, rep):
     rep.check("teams scored", scored == 30, f"only {scored}/30 clubs have an effective score")
     for r in rows:
         ab = r["abbr"]
-        a, b = r["game"].split(" @ ")
+        a, b = teams_of(r["game"])
         opp = b if ab == a else a
         want = (beff.get(opp) or {}).get("effERA")
         rep.check("oppBullpenEff", close(r.get("oppBullpenEff"), want), f"{ab:4} data.js={r.get('oppBullpenEff')}  live={want}")
